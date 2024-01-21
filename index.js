@@ -1,7 +1,7 @@
 require('dotenv').config();
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
-const dns = require('dns');
+const isUrlHttp = require('is-url-http')
 const express = require('express');
 const cors = require('cors');
 const app = express();
@@ -45,29 +45,27 @@ app.post('/api/shorturl', async (req, res) => {
   const original_url = req.body.url;
   const short_url = countDocuments + 1;
   
-  dns.lookup(original_url, async (error, address, family) => {
-    if (error) {
-      res.json({
-        error: 'invalid url'
-      });
+  if (!isUrlHttp(original_url)) {
+    res.json({
+      error: 'invalid url'
+    });
+  } else {
+    const urlJson = await Url.findOne({
+      original_url: original_url
+    }).exec();
+
+    if (urlJson) {
+      res.json(urlJson);
     } else {
-      const urlJson = await Url.findOne({
-        original_url: original_url
-      }).exec();
+      let newUrl = new Url({
+        original_url: original_url,
+        short_url: short_url
+      });
 
-      if (urlJson) {
-        res.json(urlJson);
-      } else {
-        let newUrl = new Url({
-          original_url: original_url,
-          short_url: short_url
-        });
-
-        await newUrl.save();
-        res.json(newUrl);
-      }
+      await newUrl.save();
+      res.json(newUrl);
     }
-  })
+  }
 })
 
 app.get('/api/shorturl/:short_url', async (req, res) => {
