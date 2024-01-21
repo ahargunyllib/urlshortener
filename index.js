@@ -20,6 +20,13 @@ const urlSchema = new mongoose.Schema({
   short_url: Number
 });
 
+urlSchema.set("toJSON", {
+	transform: (document, returnedObject) => {
+		delete returnedObject._id;
+		delete returnedObject.__v;
+	}
+});
+
 let Url = mongoose.model('shorturl', urlSchema);
 
 app.use('/public', express.static(`${process.cwd()}/public`));
@@ -38,18 +45,40 @@ app.post('/api/shorturl', async (req, res) => {
   const original_url = req.body.url;
   const short_url = countDocuments + 1;
   
-  dns.lookup(original_url, (error, address, family) => {
+  dns.lookup(original_url, async (error, address, family) => {
     if (error) {
       res.json({
         error: 'invalid url'
       });
     } else {
-      Url.findOne({
-        original_url: originalUrl
-      })
+      const urlJson = await Url.findOne({
+        original_url: original_url
+      }).exec();
+
+      if (urlJson) {
+        res.json(urlJson);
+      } else {
+        let newUrl = new Url({
+          original_url: original_url,
+          short_url: short_url
+        });
+
+        await newUrl.save();
+        res.json(newUrl);
+      }
     }
   })
 })
+
+app.get('/api/shorturl/:short_url', async (req, res) => {
+  let urlJson = await Url.findOne({
+    short_url: req.params.short_url
+  }).exec();
+
+  if (urlJson) {
+    res.redirect(urlJson.original_url);
+  }
+});
 
 app.listen(port, function() {
   console.log(`Listening on port ${port}`);
